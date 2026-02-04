@@ -320,6 +320,21 @@ tr:last-child td {
     color: var(--text-muted);
 }
 
+.action-cell {
+    width: 40px;
+    text-align: center;
+}
+
+.btn-icon.reprint {
+    background: rgba(0, 113, 227, 0.1);
+    color: var(--primary);
+}
+
+.btn-icon.reprint:hover {
+    background: var(--primary);
+    color: #fff;
+}
+
 /* Custom Scrollbar for Logs & Table */
 .logs-container::-webkit-scrollbar,
 .table-container::-webkit-scrollbar {

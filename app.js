@@ -182,9 +182,69 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${r.age} / ${r.gender}</td>
                 <td>${r.nationality}</td>
                 <td class="time-cell">${r.timestamp.split(', ')[1]}</td>
+                <td class="action-cell">
+                    <button class="btn-icon reprint" data-id="${r.id}" title="Reprint Token">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z"/></svg>
+                    </button>
+                </td>
             `;
+            // Attach reprint handler
+            tr.querySelector('.reprint').addEventListener('click', () => reprintToken(r));
             tbody.appendChild(tr);
         });
+    }
+
+    async function reprintToken(record) {
+        if (!device && !characteristic) {
+            addLog('Cannot reprint: No printer connected.', 'error');
+            return;
+        }
+        try {
+            addLog(`Reprinting Token #${record.token} for ${record.name}...`, 'info');
+            const encoder = new ReceiptPrinterEncoder();
+            const result = encoder
+                .initialize()
+                .align('center')
+                .bold(true)
+                .width(2)
+                .height(2)
+                .text('བདེ་ལེགས་སྨན་ཁང་།')
+                .newline()
+                .width(1)
+                .height(1)
+                .text('Delek Hospital')
+                .newline()
+                .rule()
+                .newline()
+                .text('Token Number')
+                .newline()
+                .width(3)
+                .height(3)
+                .text(`${record.token}`)
+                .newline()
+                .width(1)
+                .height(1)
+                .rule()
+                .newline()
+                .align('left')
+                .bold(true).text('Name:    ').bold(false).text(record.name).newline()
+                .bold(true).text('Age/Gen: ').bold(false).text(`${record.age} / ${record.gender}`).newline()
+                .newline()
+                .align('center')
+                .text(record.timestamp)
+                .newline()
+                .newline()
+                .text('** REPRINT **')
+                .newline()
+                .newline()
+                .cut()
+                .encode();
+
+            await sendData(result);
+            addLog(`Token #${record.token} reprinted!`, 'success');
+        } catch (err) {
+            addLog(`Reprint error: ${err.message}`, 'error');
+        }
     }
 
     initDB();
@@ -248,11 +308,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 .bold(true)
                 .width(2)
                 .height(2)
-                .text('DELEK HOSPITAL')
+                .text('བདེ་ལེགས་སྨན་ཁང་།')
                 .newline()
                 .width(1)
                 .height(1)
-                .text('Patient Token System')
+                .text('Delek Hospital')
                 .newline()
                 .rule()
                 .newline()
@@ -267,9 +327,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 .rule()
                 .newline()
                 .align('left')
-                .bold(true).text('Name:      ').bold(false).text(name).newline()
-                .bold(true).text('Age/Gen:   ').bold(false).text(`${age} / ${gender}`).newline()
-                .bold(true).text('Nationality: ').bold(false).text(nationality).newline()
+                .bold(true).text('Name:    ').bold(false).text(name).newline()
+                .bold(true).text('Age/Gen: ').bold(false).text(`${age} / ${gender}`).newline()
                 .newline()
                 .align('center')
                 .text(new Date().toLocaleString())
