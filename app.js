@@ -15,6 +15,10 @@
  */
 const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbw_LDzHS3RgYEJUr2hkRbU7j-Tg-4p7-ryiN98K3YKbHHUEmUnxZs08H5AnOJorESN2/exec'; // <-- PASTE YOUR GOOGLE APPS SCRIPT URL HERE
 
+// Direct link to open the Google Sheet (for viewing all records)
+// Replace with your actual Google Sheet URL
+const GOOGLE_SHEET_VIEW_URL = null; // <-- PASTE YOUR GOOGLE SHEET URL (e.g., 'https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit')
+
 document.addEventListener('DOMContentLoaded', () => {
     // DOM Elements
     const btnConnectUsb = document.getElementById('btnConnectUsb');
@@ -181,21 +185,43 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function refreshRecordsTable() {
-        const records = await getAllRecords();
+        let records = [];
         const tbody = document.getElementById('recordsBody');
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Loading...</td></tr>';
+
+        // Try to fetch from Google Sheets (shared across devices)
+        if (GOOGLE_SHEETS_URL) {
+            try {
+                const response = await fetch(GOOGLE_SHEETS_URL);
+                const data = await response.json();
+                if (data.success && data.records) {
+                    records = data.records;
+                    addLog('Records loaded from cloud.', 'success');
+                }
+            } catch (err) {
+                addLog('Cloud fetch failed, using local data.', 'error');
+                records = await getAllRecords();
+            }
+        } else {
+            records = await getAllRecords();
+        }
+
         tbody.innerHTML = '';
 
         // Show last 50 records, newest first
         records.reverse().slice(0, 50).forEach(r => {
             const tr = document.createElement('tr');
+            const timeStr = typeof r.timestamp === 'string' && r.timestamp.includes(', ')
+                ? r.timestamp.split(', ')[1]
+                : r.timestamp;
             tr.innerHTML = `
                 <td class="token-cell">#${r.token}</td>
                 <td>${r.name}</td>
                 <td>${r.age} / ${r.gender}</td>
                 <td>${r.nationality}</td>
-                <td class="time-cell">${r.timestamp.split(', ')[1]}</td>
+                <td class="time-cell">${timeStr}</td>
                 <td class="action-cell">
-                    <button class="btn-icon reprint" data-id="${r.id}" title="Reprint Token">
+                    <button class="btn-icon reprint" data-id="${r.token}" title="Reprint Token">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z"/></svg>
                     </button>
                 </td>
@@ -204,6 +230,10 @@ document.addEventListener('DOMContentLoaded', () => {
             tr.querySelector('.reprint').addEventListener('click', () => reprintToken(r));
             tbody.appendChild(tr);
         });
+
+        if (records.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color: #888;">No records yet.</td></tr>';
+        }
     }
 
     async function reprintToken(record) {
@@ -378,40 +408,44 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // CSV Download
+    // Records Button: Open Google Sheet directly
     const btnDownloadCsv = document.getElementById('btnDownloadCsv');
     btnDownloadCsv.addEventListener('click', async () => {
-        const records = await getAllRecords();
-        if (records.length === 0) {
-            addLog('No records found to download.', 'error');
-            return;
+        if (GOOGLE_SHEET_VIEW_URL) {
+            window.open(GOOGLE_SHEET_VIEW_URL, '_blank');
+            addLog('Opening Google Sheet...', 'info');
+        } else {
+            // Fallback: Download local CSV if no sheet URL configured
+            const records = await getAllRecords();
+            if (records.length === 0) {
+                addLog('No records found. Configure GOOGLE_SHEET_VIEW_URL in app.js.', 'error');
+                return;
+            }
+
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += "Timestamp,Token Number,Patient Name,Age,Gender,Nationality\n";
+
+            records.forEach(r => {
+                const row = [
+                    `"${r.timestamp}"`,
+                    r.token,
+                    `"${r.name}"`,
+                    r.age,
+                    `"${r.gender}"`,
+                    `"${r.nationality}"`
+                ].join(",");
+                csvContent += row + "\n";
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `Delek_Patient_Records_${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            addLog('Patient records exported successfully!', 'success');
         }
-
-        // CSV Header
-        let csvContent = "data:text/csv;charset=utf-8,";
-        csvContent += "Timestamp,Token Number,Patient Name,Age,Gender,Nationality\n";
-
-        // CSV Rows
-        records.forEach(r => {
-            const row = [
-                `"${r.timestamp}"`,
-                r.token,
-                `"${r.name}"`,
-                r.age,
-                `"${r.gender}"`,
-                `"${r.nationality}"`
-            ].join(",");
-            csvContent += row + "\n";
-        });
-
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `Delek_Patient_Records_${new Date().toISOString().split('T')[0]}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        addLog('Patient records exported successfully!', 'success');
     });
 
     // Management Actions
