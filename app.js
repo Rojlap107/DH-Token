@@ -3,6 +3,18 @@
  * Core Logic for Driverless ESC/POS Printing
  */
 
+/**
+ * GOOGLE SHEETS INTEGRATION
+ * -------------------------
+ * To enable cloud backup to Google Sheets:
+ * 1. Open the file 'google-apps-script.js' in this folder
+ * 2. Follow the setup instructions in that file
+ * 3. After deploying, paste your Web App URL below (replace null)
+ * 
+ * Example: const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycb.../exec';
+ */
+const GOOGLE_SHEETS_URL = null; // <-- PASTE YOUR GOOGLE APPS SCRIPT URL HERE
+
 document.addEventListener('DOMContentLoaded', () => {
     // DOM Elements
     const btnConnectUsb = document.getElementById('btnConnectUsb');
@@ -287,7 +299,7 @@ document.addEventListener('DOMContentLoaded', () => {
             currentToken++;
             localStorage.setItem('delekTokenCounter', currentToken);
 
-            // Save to DB
+            // Save to Local DB
             const record = {
                 timestamp: new Date().toLocaleString(),
                 token: currentToken,
@@ -298,6 +310,21 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             await saveRecord(record);
             refreshRecordsTable();
+
+            // Save to Google Sheets (cloud backup)
+            if (GOOGLE_SHEETS_URL) {
+                try {
+                    await fetch(GOOGLE_SHEETS_URL, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(record)
+                    });
+                    addLog('Record synced to cloud.', 'success');
+                } catch (cloudErr) {
+                    addLog('Cloud sync failed (offline?).', 'error');
+                }
+            }
 
             addLog(`Generating Token #${currentToken} for ${name}...`, 'info');
 
