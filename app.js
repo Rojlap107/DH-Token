@@ -17,7 +17,7 @@ const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbw_LDzHS3RgYE
 
 // Direct link to open the Google Sheet (for viewing all records)
 // Replace with your actual Google Sheet URL
-const GOOGLE_SHEET_VIEW_URL = null; // <-- PASTE YOUR GOOGLE SHEET URL (e.g., 'https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit')
+const GOOGLE_SHEET_VIEW_URL = 'https://docs.google.com/spreadsheets/d/14wqbexW69qRIqOwrRB2Q4LTNk9lrpTdX7TJj_jiQYXk/edit';
 
 document.addEventListener('DOMContentLoaded', () => {
     // DOM Elements
