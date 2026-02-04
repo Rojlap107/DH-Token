@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thermal Print Pro | Driverless Printing</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono&display=swap"
+        rel="stylesheet">
+</head>
+
+<body class="apple-style">
+    <div class="container">
+        <header>
+            <h1>Delek Hospital</h1>
+            <p>Patient Token System</p>
+        </header>
+
+        <main>
+            <section class="connection-panel card">
+                <h2>Connector</h2>
+                <div class="button-group">
+                    <button id="btnConnectUsb" class="btn primary">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 2v10m0 0l-3-3m3 3l3-3m-3 10V12" />
+                        </svg>
+                        USB
+                    </button>
+                    <button id="btnConnectBluetooth" class="btn secondary">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M7 7l10 10M17 7L7 10" />
+                        </svg>
+                        Bluetooth
+                    </button>
+                    <button id="btnDownloadCsv" class="btn secondary">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
+                        </svg>
+                        Records
+                    </button>
+                </div>
+                <div id="status" class="status-badge disconnected">Disconnected</div>
+            </section>
+
+            <section class="content-panel card">
+                <h2>Patient Registration</h2>
+                <form id="tokenForm">
+                    <div class="input-group">
+                        <input type="text" id="patientName" placeholder="Patient Name" required>
+                    </div>
+                    <div class="input-group">
+                        <input type="number" id="patientAge" placeholder="Age" required>
+                    </div>
+                    <div class="input-group">
+                        <select id="patientGender" required>
+                            <option value="" disabled selected>Select Gender</option>
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <select id="patientNationality" required>
+                            <option value="" disabled selected>Select Nationality</option>
+                            <option value="Tibetan">Tibetan</option>
+                            <option value="Indian">Indian</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                </form>
+
+                <div class="action-buttons">
+                    <button id="btnGenerateToken" class="btn action" disabled>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path
+                                d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z" />
+                        </svg>
+                        Generate Token
+                    </button>
+                </div>
+            </section>
+
+            <section class="logs-panel card">
+                <div class="section-header">
+                    <h2>Records Management</h2>
+                    <div class="header-actions">
+                        <button id="btnRefreshRecords" class="btn-icon">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path
+                                    d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
+                            </svg>
+                        </button>
+                        <button id="btnClearAllRecords" class="btn-icon delete">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path
+                                    d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table id="recordsTable">
+                        <thead>
+                            <tr>
+                                <th>Token</th>
+                                <th>Name</th>
+                                <th>Age/Gen</th>
+                                <th>Nationality</th>
+                                <th>Time</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recordsBody">
+                            <!-- Records will be injected here -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="logs-panel card">
+                <h2>Console</h2>
+                <div id="logs" class="logs-container">
+                    <div class="log-entry system">Welcome to Delek Hospital System. Ready to connect.</div>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>&copy; 2026 Thermal Print Pro. Built with WebUSB API.</p>
+        </footer>
+    </div>
+    <script src="receipt-printer-encoder.umd.js"></script>
+    <script src="app.js"></script>
+</body>
+
+</html>

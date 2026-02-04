@@ -1,0 +1,351 @@
+/**
+ * Thermal Print Pro
+ * Core Logic for Driverless ESC/POS Printing
+ */
+
+document.addEventListener('DOMContentLoaded', () => {
+    // DOM Elements
+    const btnConnectUsb = document.getElementById('btnConnectUsb');
+    const btnConnectBluetooth = document.getElementById('btnConnectBluetooth');
+    const btnPrint = document.getElementById('btnPrint');
+    const btnTestPrint = document.getElementById('btnTestPrint');
+    const textInput = document.getElementById('printText');
+    const statusBadge = document.getElementById('status');
+    const logsContainer = document.getElementById('logs');
+
+    let device = null;
+    let server = null; // for bluetooth
+    let characteristic = null; // for bluetooth
+
+    // Log Helper
+    function addLog(message, type = 'system') {
+        const entry = document.createElement('div');
+        entry.className = `log-entry ${type}`;
+        const time = new Date().toLocaleTimeString([], { hour12: false });
+        entry.textContent = `[${time}] ${message}`;
+        logsContainer.appendChild(entry);
+        logsContainer.scrollTop = logsContainer.scrollHeight;
+    }
+
+    // Update Connection UI
+    function updateConnectionStatus(connected, deviceName = '') {
+        if (connected) {
+            statusBadge.textContent = `Connected: ${deviceName}`;
+            statusBadge.classList.remove('disconnected');
+            statusBadge.classList.add('connected');
+            const btnGenerate = document.getElementById('btnGenerateToken');
+            if (btnGenerate) btnGenerate.disabled = false;
+            addLog(`Printer "${deviceName}" ready.`, 'success');
+        } else {
+            statusBadge.textContent = 'Disconnected';
+            statusBadge.classList.remove('connected');
+            statusBadge.classList.add('disconnected');
+            const btnGenerate = document.getElementById('btnGenerateToken');
+            if (btnGenerate) btnGenerate.disabled = true;
+            device = null;
+            addLog('Printer disconnected.', 'error');
+        }
+    }
+
+    // --- WebUSB Magic ---
+    btnConnectUsb.addEventListener('click', async () => {
+        try {
+            addLog('Requesting USB device...', 'info');
+            device = await navigator.usb.requestDevice({ filters: [] });
+
+            await device.open();
+            if (device.configuration === null) {
+                await device.selectConfiguration(1);
+            }
+            await device.claimInterface(0);
+
+            updateConnectionStatus(true, device.productName || 'USB Printer');
+        } catch (err) {
+            addLog(`USB connection error: ${err.message}`, 'error');
+        }
+    });
+
+    // --- WebBluetooth Magic ---
+    btnConnectBluetooth.addEventListener('click', async () => {
+        try {
+            addLog('Requesting Bluetooth device...', 'info');
+            const btDevice = await navigator.bluetooth.requestDevice({
+                filters: [{ services: ['000018f0-0000-1000-8000-00805f9b34fb'] }], // Generic Service for many thermal printers
+                optionalServices: ['49535343-fe7d-4ae5-8fa9-9fafd205e455'] // Another common service
+            });
+
+            server = await btDevice.gatt.connect();
+            const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
+            // This is a naive assumption, real printers might need specific UUIDs for characteristics
+            const characteristics = await service.getCharacteristics();
+            characteristic = characteristics.find(c => c.properties.write || c.properties.writeWithoutResponse);
+
+            updateConnectionStatus(true, btDevice.name || 'BT Printer');
+        } catch (err) {
+            addLog(`Bluetooth connection error: ${err.message}`, 'error');
+        }
+    });
+
+    // --- Database (IndexedDB) Magic ---
+    const DB_NAME = 'DelekMedicalDB';
+    const DB_VERSION = 1;
+    const STORE_NAME = 'patients';
+    let db = null;
+
+    function initDB() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(DB_NAME, DB_VERSION);
+            request.onupgradeneeded = (e) => {
+                const db = e.target.result;
+                if (!db.objectStoreNames.contains(STORE_NAME)) {
+                    db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+                }
+            };
+            request.onsuccess = (e) => {
+                db = e.target.result;
+                resolve(db);
+                refreshRecordsTable();
+            };
+            request.onerror = (e) => reject(e.target.error);
+        });
+    }
+
+    async function saveRecord(record) {
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction([STORE_NAME], 'readwrite');
+            const store = transaction.objectStore(STORE_NAME);
+            const request = store.add(record);
+            request.onsuccess = () => resolve();
+            request.onerror = (e) => reject(e.target.error);
+        });
+    }
+
+    async function getAllRecords() {
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction([STORE_NAME], 'readonly');
+            const store = transaction.objectStore(STORE_NAME);
+            const request = store.getAll();
+            request.onsuccess = (e) => resolve(e.target.result);
+            request.onerror = (e) => reject(e.target.error);
+        });
+    }
+
+    async function clearAllRecords() {
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction([STORE_NAME], 'readwrite');
+            const store = transaction.objectStore(STORE_NAME);
+            const request = store.clear();
+            request.onsuccess = () => resolve();
+            request.onerror = (e) => reject(e.target.error);
+        });
+    }
+
+    async function refreshRecordsTable() {
+        const records = await getAllRecords();
+        const tbody = document.getElementById('recordsBody');
+        tbody.innerHTML = '';
+
+        // Show last 50 records, newest first
+        records.reverse().slice(0, 50).forEach(r => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="token-cell">#${r.token}</td>
+                <td>${r.name}</td>
+                <td>${r.age} / ${r.gender}</td>
+                <td>${r.nationality}</td>
+                <td class="time-cell">${r.timestamp.split(', ')[1]}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    initDB();
+
+    // Token Counter
+    let currentToken = parseInt(localStorage.getItem('delekTokenCounter') || '0');
+
+    // --- Printing Logic ---
+    async function sendData(data) {
+        if (device) {
+            const endpoint = device.configuration.interfaces[0].alternate.endpoints.find(e => e.direction === 'out').endpointNumber;
+            await device.transferOut(endpoint, data);
+        } else if (characteristic) {
+            const chunkSize = 20;
+            for (let i = 0; i < data.byteLength; i += chunkSize) {
+                await characteristic.writeValue(data.slice(i, i + chunkSize));
+            }
+        }
+    }
+
+    const btnGenerateToken = document.getElementById('btnGenerateToken');
+
+    btnGenerateToken.addEventListener('click', async () => {
+        const name = document.getElementById('patientName').value;
+        const age = document.getElementById('patientAge').value;
+        const gender = document.getElementById('patientGender').value;
+        const nationality = document.getElementById('patientNationality').value;
+
+        if (!name || !age || !gender || !nationality) {
+            addLog('Please fill in all patient details.', 'error');
+            return;
+        }
+
+        try {
+            if (typeof ReceiptPrinterEncoder === 'undefined') {
+                throw new Error('ReceiptPrinterEncoder library not loaded.');
+            }
+
+            // Increment and Save Token
+            currentToken++;
+            localStorage.setItem('delekTokenCounter', currentToken);
+
+            // Save to DB
+            const record = {
+                timestamp: new Date().toLocaleString(),
+                token: currentToken,
+                name: name,
+                age: age,
+                gender: gender,
+                nationality: nationality
+            };
+            await saveRecord(record);
+            refreshRecordsTable();
+
+            addLog(`Generating Token #${currentToken} for ${name}...`, 'info');
+
+            const encoder = new ReceiptPrinterEncoder();
+            const result = encoder
+                .initialize()
+                .align('center')
+                .bold(true)
+                .width(2)
+                .height(2)
+                .text('DELEK HOSPITAL')
+                .newline()
+                .width(1)
+                .height(1)
+                .text('Patient Token System')
+                .newline()
+                .rule()
+                .newline()
+                .text('Token Number')
+                .newline()
+                .width(3)
+                .height(3)
+                .text(`${currentToken}`)
+                .newline()
+                .width(1)
+                .height(1)
+                .rule()
+                .newline()
+                .align('left')
+                .bold(true).text('Name:      ').bold(false).text(name).newline()
+                .bold(true).text('Age/Gen:   ').bold(false).text(`${age} / ${gender}`).newline()
+                .bold(true).text('Nationality: ').bold(false).text(nationality).newline()
+                .newline()
+                .align('center')
+                .text(new Date().toLocaleString())
+                .newline()
+                .newline()
+                .text('Please wait for your turn.')
+                .newline()
+                .newline()
+                .cut()
+                .encode();
+
+            addLog('Sending to printer...', 'info');
+            await sendData(result);
+            addLog(`Token #${currentToken} printed successfully!`, 'success');
+
+            // Clear form
+            document.getElementById('tokenForm').reset();
+        } catch (err) {
+            addLog(`Print error: ${err.message}`, 'error');
+        }
+    });
+
+    // CSV Download
+    const btnDownloadCsv = document.getElementById('btnDownloadCsv');
+    btnDownloadCsv.addEventListener('click', async () => {
+        const records = await getAllRecords();
+        if (records.length === 0) {
+            addLog('No records found to download.', 'error');
+            return;
+        }
+
+        // CSV Header
+        let csvContent = "data:text/csv;charset=utf-8,";
+        csvContent += "Timestamp,Token Number,Patient Name,Age,Gender,Nationality\n";
+
+        // CSV Rows
+        records.forEach(r => {
+            const row = [
+                `"${r.timestamp}"`,
+                r.token,
+                `"${r.name}"`,
+                r.age,
+                `"${r.gender}"`,
+                `"${r.nationality}"`
+            ].join(",");
+            csvContent += row + "\n";
+        });
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `Delek_Patient_Records_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        addLog('Patient records exported successfully!', 'success');
+    });
+
+    // Management Actions
+    document.getElementById('btnRefreshRecords').addEventListener('click', () => {
+        refreshRecordsTable();
+        addLog('Records table refreshed.', 'info');
+    });
+
+    document.getElementById('btnClearAllRecords').addEventListener('click', async () => {
+        if (confirm('Are you sure you want to PERMANENTLY delete all medical records? This cannot be undone.')) {
+            await clearAllRecords();
+            refreshRecordsTable();
+            addLog('All records have been cleared.', 'error');
+        }
+    });
+
+    // Re-use test print for debug
+    if (btnTestPrint) {
+        btnTestPrint.addEventListener('click', async () => {
+            try {
+                const encoder = new ReceiptPrinterEncoder();
+                let result = encoder.initialize().align('center').text('TEST PAGE').newline().cut().encode();
+                await sendData(result);
+                addLog('Test page sent!', 'success');
+            } catch (err) {
+                addLog(`Test print error: ${err.message}`, 'error');
+            }
+        });
+    }
+});
+
+// Tool insertion logic
+window.insertCommand = function (cmd) {
+    const textarea = document.getElementById('printText');
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = textarea.value;
+
+    // In a real implementation, we might use markup like [B]text[/B] 
+    // and then parse it in app.js. For now, let's just add labels.
+    let replacement = '';
+    switch (cmd) {
+        case 'bold': replacement = `[BOLD]${text.substring(start, end)}[/BOLD]`; break;
+        case 'large': replacement = `[LARGE]${text.substring(start, end)}[/LARGE]`; break;
+        case 'center': replacement = `[CENTER]${text.substring(start, end)}[/CENTER]`; break;
+        case 'cut': replacement = `\n[CUT]\n`; break;
+    }
+
+    textarea.value = text.substring(0, start) + replacement + text.substring(end);
+    textarea.focus();
+};
