@@ -68,21 +68,49 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- WebBluetooth Magic ---
     btnConnectBluetooth.addEventListener('click', async () => {
         try {
-            addLog('Requesting Bluetooth device...', 'info');
+            addLog('Searching for Bluetooth printers...', 'info');
+
+            // Broaden filters: Many printers don't advertise their specific service UUIDs
+            // We use acceptAllDevices: true but must specify optionalServices to access them
             const btDevice = await navigator.bluetooth.requestDevice({
-                filters: [{ services: ['000018f0-0000-1000-8000-00805f9b34fb'] }], // Generic Service for many thermal printers
-                optionalServices: ['49535343-fe7d-4ae5-8fa9-9fafd205e455'] // Another common service
+                acceptAllDevices: true,
+                optionalServices: [
+                    '000018f0-0000-1000-8000-00805f9b34fb', // Generic Label/Receipt
+                    '49535343-fe7d-4ae5-8fa9-9fafd205e455', // ISSC
+                    'e7e11001-4954-4152-594f-4e4d45544943', // Star Micronics
+                    '0000ff00-0000-1000-8000-00805f9b34fb', // Common 
+                    '0000af30-0000-1000-8000-00805f9b34fb'  // Common 
+                ]
             });
 
+            addLog(`Connecting to ${btDevice.name || 'Device'}...`, 'info');
             server = await btDevice.gatt.connect();
-            const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
-            // This is a naive assumption, real printers might need specific UUIDs for characteristics
-            const characteristics = await service.getCharacteristics();
-            characteristic = characteristics.find(c => c.properties.write || c.properties.writeWithoutResponse);
+
+            addLog('Scanning services...', 'info');
+            const services = await server.getPrimaryServices();
+
+            if (services.length === 0) {
+                throw new Error('No Bluetooth services found on this device.');
+            }
+
+            // Look for a writable characteristic in any service
+            for (const service of services) {
+                const characteristics = await service.getCharacteristics();
+                characteristic = characteristics.find(c => c.properties.write || c.properties.writeWithoutResponse);
+                if (characteristic) {
+                    addLog(`Found printing service: ${service.uuid.substring(0, 8)}`, 'success');
+                    break;
+                }
+            }
+
+            if (!characteristic) {
+                throw new Error('Could not find a writable print characteristic.');
+            }
 
             updateConnectionStatus(true, btDevice.name || 'BT Printer');
         } catch (err) {
-            addLog(`Bluetooth connection error: ${err.message}`, 'error');
+            addLog(`Bluetooth error: ${err.message}`, 'error');
+            console.error(err);
         }
     });
 
