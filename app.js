@@ -13,7 +13,7 @@
  * 
  * Example: const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycb.../exec';
  */
-const GOOGLE_SHEETS_URL = null; // <-- PASTE YOUR GOOGLE APPS SCRIPT URL HERE
+const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbw_LDzHS3RgYEJUr2hkRbU7j-Tg-4p7-ryiN98K3YKbHHUEmUnxZs08H5AnOJorESN2/exec'; // <-- PASTE YOUR GOOGLE APPS SCRIPT URL HERE
 
 document.addEventListener('DOMContentLoaded', () => {
     // DOM Elements
