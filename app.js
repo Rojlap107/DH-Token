@@ -534,15 +534,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const endpoint = device.configuration.interfaces[0].alternate.endpoints.find(e => e.direction === 'out').endpointNumber;
             await device.transferOut(endpoint, data);
         } else if (characteristic) {
-            // Bluetooth - send in chunks with small delays to prevent buffer overflow
-            const chunkSize = 100; // Larger chunks for efficiency
+            // Bluetooth - send in smaller chunks for Android compatibility
+            // Android BLE has stricter MTU limits (~20-23 bytes default)
+            const chunkSize = 20;
             for (let i = 0; i < data.byteLength; i += chunkSize) {
                 const chunk = data.slice(i, Math.min(i + chunkSize, data.byteLength));
                 await characteristic.writeValue(chunk);
-                // Small delay between chunks to let printer process
-                if (i + chunkSize < data.byteLength) {
-                    await delay(10);
-                }
+                // Longer delay for Android BLE stack to process
+                await delay(50);
             }
         }
     }
