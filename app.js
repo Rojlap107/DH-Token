@@ -530,11 +530,17 @@ document.addEventListener('DOMContentLoaded', () => {
             await device.transferOut(endpoint, data);
         } else if (characteristic) {
             // Bluetooth - send in smaller chunks for Android compatibility
-            // Android BLE has stricter MTU limits (~20-23 bytes default)
             const chunkSize = 20;
+            // Use writeWithoutResponse if available (faster, better for printers)
+            const useWriteWithoutResponse = characteristic.properties.writeWithoutResponse;
+
             for (let i = 0; i < data.byteLength; i += chunkSize) {
                 const chunk = data.slice(i, Math.min(i + chunkSize, data.byteLength));
-                await characteristic.writeValue(chunk);
+                if (useWriteWithoutResponse) {
+                    await characteristic.writeValueWithoutResponse(chunk);
+                } else {
+                    await characteristic.writeValue(chunk);
+                }
                 // Small delay between chunks
                 await delay(10);
             }
