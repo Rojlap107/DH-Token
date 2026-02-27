@@ -157,6 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let device = null;
     let server = null; // for bluetooth
     let characteristic = null; // for bluetooth
+    let isPrinting = false; // prevent concurrent print operations
 
     // Log Helper
     function addLog(message, type = 'system') {
@@ -433,7 +434,12 @@ document.addEventListener('DOMContentLoaded', () => {
             addLog('Cannot reprint: No printer connected.', 'error');
             return;
         }
+        if (isPrinting) {
+            addLog('Please wait, printer is busy...', 'warning');
+            return;
+        }
         try {
+            isPrinting = true;
             addLog(`Reprinting Token #${record.token} for ${record.name}...`, 'info');
 
             // Create Tibetan header as image for reliable printing
@@ -480,6 +486,8 @@ document.addEventListener('DOMContentLoaded', () => {
             addLog(`Token #${record.token} reprinted!`, 'success');
         } catch (err) {
             addLog(`Reprint error: ${err.message}`, 'error');
+        } finally {
+            isPrinting = false;
         }
     }
 
@@ -603,8 +611,13 @@ document.addEventListener('DOMContentLoaded', () => {
             addLog('Cannot print: No printer connected.', 'error');
             return false;
         }
+        if (isPrinting) {
+            addLog('Please wait, printer is busy...', 'warning');
+            return false;
+        }
 
         try {
+            isPrinting = true;
             if (typeof ReceiptPrinterEncoder === 'undefined') {
                 throw new Error('ReceiptPrinterEncoder library not loaded.');
             }
@@ -657,6 +670,8 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {
             addLog(`Print error: ${err.message}`, 'error');
             return false;
+        } finally {
+            isPrinting = false;
         }
     }
 

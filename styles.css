@@ -489,6 +489,10 @@ tr:last-child td {
     color: var(--primary);
 }
 
+.log-entry.warning {
+    color: #f5a623;
+}
+
 footer {
     text-align: center;
     margin-top: 32px;
