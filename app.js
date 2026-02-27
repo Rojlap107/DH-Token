@@ -13,11 +13,117 @@
  * 
  * Example: const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycb.../exec';
  */
-const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbw_LDzHS3RgYEJUr2hkRbU7j-Tg-4p7-ryiN98K3YKbHHUEmUnxZs08H5AnOJorESN2/exec'; // <-- PASTE YOUR GOOGLE APPS SCRIPT URL HERE
+const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbztjmB5qibKFjJxp8ZuCzTcTTnwYfS3wHol7R4ogon7UTw7JFR9n-8tq_7Pjx8NLPXTzA/exec'; // <-- PASTE YOUR GOOGLE APPS SCRIPT URL HERE
 
 // Direct link to open the Google Sheet (for viewing all records)
 // Replace with your actual Google Sheet URL
-const GOOGLE_SHEET_VIEW_URL = 'https://docs.google.com/spreadsheets/d/14wqbexW69qRIqOwrRB2Q4LTNk9lrpTdX7TJj_jiQYXk/edit';
+const GOOGLE_SHEET_VIEW_URL = 'https://docs.google.com/spreadsheets/d/1MrhW2IPekAArcj2ZA617tRTQAFtEm5-VNdaWX85ndTw/edit?usp=sharing';
+
+// ==================== AUTHENTICATION ====================
+const AUTH_SESSION_KEY = 'delekHospitalAuth';
+
+function checkAuth() {
+    const session = localStorage.getItem(AUTH_SESSION_KEY);
+    if (session) {
+        try {
+            const data = JSON.parse(session);
+            // Session valid for 24 hours
+            if (data.timestamp && Date.now() - data.timestamp < 24 * 60 * 60 * 1000) {
+                return data;
+            }
+        } catch (e) {
+            // Invalid session data
+        }
+        localStorage.removeItem(AUTH_SESSION_KEY);
+    }
+    return null;
+}
+
+function showApp() {
+    document.getElementById('loginOverlay').classList.add('hidden');
+    document.querySelector('.container').style.display = 'block';
+
+    // Show logged-in user name
+    const session = checkAuth();
+    if (session && session.name) {
+        document.getElementById('loggedInUser').textContent = session.name;
+    }
+}
+
+function showLogin() {
+    document.getElementById('loginOverlay').classList.remove('hidden');
+    document.querySelector('.container').style.display = 'none';
+}
+
+async function verifyCredentials(username, password) {
+    if (!GOOGLE_SHEETS_URL) {
+        throw new Error('Google Sheets URL not configured');
+    }
+
+    const url = `${GOOGLE_SHEETS_URL}?action=login&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
+    const response = await fetch(url);
+    const data = await response.json();
+    return data;
+}
+
+function logout() {
+    localStorage.removeItem(AUTH_SESSION_KEY);
+    showLogin();
+}
+
+// Initialize auth on page load
+document.addEventListener('DOMContentLoaded', () => {
+    const loginOverlay = document.getElementById('loginOverlay');
+    const loginForm = document.getElementById('loginForm');
+    const loginError = document.getElementById('loginError');
+    const btnLogout = document.getElementById('btnLogout');
+
+    // Check if already logged in
+    const session = checkAuth();
+    if (session) {
+        showApp();
+    } else {
+        showLogin();
+    }
+
+    // Login form submission
+    loginForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const username = document.getElementById('loginUsername').value.trim();
+        const password = document.getElementById('loginPassword').value;
+        const btnLogin = document.getElementById('btnLogin');
+
+        loginError.textContent = '';
+        btnLogin.disabled = true;
+        btnLogin.textContent = 'Logging in...';
+
+        try {
+            const result = await verifyCredentials(username, password);
+
+            if (result.success) {
+                // Save session
+                localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify({
+                    username: username,
+                    name: result.name || username,
+                    timestamp: Date.now()
+                }));
+                showApp();
+                loginForm.reset();
+            } else {
+                loginError.textContent = result.message || 'Invalid username or password';
+            }
+        } catch (err) {
+            loginError.textContent = 'Login failed. Please try again.';
+            console.error('Login error:', err);
+        } finally {
+            btnLogin.disabled = false;
+            btnLogin.textContent = 'Login';
+        }
+    });
+
+    // Logout button
+    btnLogout.addEventListener('click', logout);
+});
 
 document.addEventListener('DOMContentLoaded', () => {
     // DOM Elements
@@ -43,21 +149,48 @@ document.addEventListener('DOMContentLoaded', () => {
         logsContainer.scrollTop = logsContainer.scrollHeight;
     }
 
+    // Render Tibetan text as image for reliable printing
+    function createTibetanImage(text, fontSize = 32) {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+
+        // Set font and measure text
+        ctx.font = `bold ${fontSize}px "Monlam OuChan", "Noto Sans Tibetan", sans-serif`;
+        const metrics = ctx.measureText(text);
+
+        // Size canvas to fit text (thermal printers typically 384px wide for 58mm paper)
+        const padding = 10;
+        canvas.width = Math.min(384, metrics.width + padding * 2);
+        canvas.height = fontSize + padding * 2;
+
+        // Fill white background
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Draw text in black
+        ctx.fillStyle = '#000000';
+        ctx.font = `bold ${fontSize}px "Monlam OuChan", "Noto Sans Tibetan", sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+
+        return canvas;
+    }
+
     // Update Connection UI
     function updateConnectionStatus(connected, deviceName = '') {
+        const btnSaveAndPrint = document.getElementById('btnSaveAndPrint');
         if (connected) {
             statusBadge.textContent = `Connected: ${deviceName}`;
             statusBadge.classList.remove('disconnected');
             statusBadge.classList.add('connected');
-            const btnGenerate = document.getElementById('btnGenerateToken');
-            if (btnGenerate) btnGenerate.disabled = false;
+            if (btnSaveAndPrint) btnSaveAndPrint.disabled = false;
             addLog(`Printer "${deviceName}" ready.`, 'success');
         } else {
             statusBadge.textContent = 'Disconnected';
             statusBadge.classList.remove('connected');
             statusBadge.classList.add('disconnected');
-            const btnGenerate = document.getElementById('btnGenerateToken');
-            if (btnGenerate) btnGenerate.disabled = true;
+            if (btnSaveAndPrint) btnSaveAndPrint.disabled = true;
             device = null;
             addLog('Printer disconnected.', 'error');
         }
@@ -184,32 +317,47 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    async function refreshRecordsTable() {
-        let records = [];
+    // Store records for search
+    let allRecords = [];
+
+    async function refreshRecordsTable(searchTerm = '') {
         const tbody = document.getElementById('recordsBody');
         tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Loading...</td></tr>';
 
-        // Try to fetch from Google Sheets (shared across devices)
-        if (GOOGLE_SHEETS_URL) {
-            try {
-                const response = await fetch(GOOGLE_SHEETS_URL);
-                const data = await response.json();
-                if (data.success && data.records) {
-                    records = data.records;
-                    addLog('Records loaded from cloud.', 'success');
+        // Fetch records if not searching
+        if (!searchTerm) {
+            if (GOOGLE_SHEETS_URL) {
+                try {
+                    const response = await fetch(GOOGLE_SHEETS_URL);
+                    const data = await response.json();
+                    if (data.success && data.records) {
+                        allRecords = data.records;
+                        addLog('Records loaded from cloud.', 'success');
+                    }
+                } catch (err) {
+                    addLog('Cloud fetch failed, using local data.', 'error');
+                    allRecords = await getAllRecords();
                 }
-            } catch (err) {
-                addLog('Cloud fetch failed, using local data.', 'error');
-                records = await getAllRecords();
+            } else {
+                allRecords = await getAllRecords();
             }
-        } else {
-            records = await getAllRecords();
+        }
+
+        // Filter records if search term provided
+        let filteredRecords = allRecords;
+        if (searchTerm) {
+            const term = searchTerm.toLowerCase();
+            filteredRecords = allRecords.filter(r =>
+                String(r.token).includes(term) ||
+                (r.name && r.name.toLowerCase().includes(term)) ||
+                (r.phone && r.phone.toLowerCase().includes(term))
+            );
         }
 
         tbody.innerHTML = '';
 
         // Show last 50 records, newest first
-        records.reverse().slice(0, 50).forEach(r => {
+        filteredRecords.slice().reverse().slice(0, 50).forEach(r => {
             const tr = document.createElement('tr');
             const timeStr = typeof r.timestamp === 'string' && r.timestamp.includes(', ')
                 ? r.timestamp.split(', ')[1]
@@ -217,22 +365,21 @@ document.addEventListener('DOMContentLoaded', () => {
             tr.innerHTML = `
                 <td class="token-cell">#${r.token}</td>
                 <td>${r.name}</td>
+                <td>${r.phone || '-'}</td>
                 <td>${r.age} / ${r.gender}</td>
-                <td>${r.nationality}</td>
                 <td class="time-cell">${timeStr}</td>
                 <td class="action-cell">
-                    <button class="btn-icon reprint" data-id="${r.token}" title="Reprint Token">
+                    <button class="btn-icon reprint" data-id="${r.token}" title="Print">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z"/></svg>
                     </button>
                 </td>
             `;
-            // Attach reprint handler
             tr.querySelector('.reprint').addEventListener('click', () => reprintToken(r));
             tbody.appendChild(tr);
         });
 
-        if (records.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color: #888;">No records yet.</td></tr>';
+        if (filteredRecords.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color: #888;">${searchTerm ? 'No matching records.' : 'No records yet.'}</td></tr>`;
         }
     }
 
@@ -243,15 +390,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         try {
             addLog(`Reprinting Token #${record.token} for ${record.name}...`, 'info');
+
+            // Create Tibetan header as image for reliable printing
+            const tibetanHeader = createTibetanImage('བདེ་ལེགས་སྨན་ཁང་།', 36);
+
             const encoder = new ReceiptPrinterEncoder();
             const result = encoder
                 .initialize()
                 .align('center')
-                .bold(true)
-                .width(2)
-                .height(2)
-                .text('བདེ་ལེགས་སྨན་ཁང་།')
+                .image(tibetanHeader, 384, 56, 'atkinson')
                 .newline()
+                .bold(true)
                 .width(1)
                 .height(1)
                 .text('Delek Hospital')
@@ -291,33 +440,118 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initDB();
 
-    // Token Counter
-    let currentToken = parseInt(localStorage.getItem('delekTokenCounter') || '0');
+    // Token Counter (resets daily)
+    function getTodayDateString() {
+        return new Date().toISOString().split('T')[0]; // Returns "YYYY-MM-DD"
+    }
+
+    function loadTokenCounter() {
+        const stored = localStorage.getItem('delekTokenData');
+        if (stored) {
+            try {
+                const data = JSON.parse(stored);
+                if (data.date === getTodayDateString()) {
+                    return data.token;
+                }
+            } catch (e) {
+                // Invalid data, reset
+            }
+        }
+        return 0; // New day or no data, start from 0
+    }
+
+    function saveTokenCounter(token) {
+        localStorage.setItem('delekTokenData', JSON.stringify({
+            date: getTodayDateString(),
+            token: token
+        }));
+    }
+
+    let currentToken = loadTokenCounter();
 
     // --- Printing Logic ---
+    // Small delay helper for Bluetooth timing
+    function delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
     async function sendData(data) {
         if (device) {
+            // USB - send all at once
             const endpoint = device.configuration.interfaces[0].alternate.endpoints.find(e => e.direction === 'out').endpointNumber;
             await device.transferOut(endpoint, data);
         } else if (characteristic) {
-            const chunkSize = 20;
+            // Bluetooth - send in chunks with small delays to prevent buffer overflow
+            const chunkSize = 100; // Larger chunks for efficiency
             for (let i = 0; i < data.byteLength; i += chunkSize) {
-                await characteristic.writeValue(data.slice(i, i + chunkSize));
+                const chunk = data.slice(i, Math.min(i + chunkSize, data.byteLength));
+                await characteristic.writeValue(chunk);
+                // Small delay between chunks to let printer process
+                if (i + chunkSize < data.byteLength) {
+                    await delay(10);
+                }
             }
         }
     }
 
-    const btnGenerateToken = document.getElementById('btnGenerateToken');
-
-    btnGenerateToken.addEventListener('click', async () => {
-        const name = document.getElementById('patientName').value;
+    // --- Save Token (without printing) ---
+    async function saveTokenRecord() {
+        const name = document.getElementById('patientName').value.trim();
+        const phone = document.getElementById('patientPhone').value.trim();
         const age = document.getElementById('patientAge').value;
         const gender = document.getElementById('patientGender').value;
         const nationality = document.getElementById('patientNationality').value;
 
         if (!name || !age || !gender || !nationality) {
-            addLog('Please fill in all patient details.', 'error');
-            return;
+            addLog('Please fill in all required fields.', 'error');
+            return null;
+        }
+
+        // Increment and Save Token (resets daily)
+        currentToken++;
+        saveTokenCounter(currentToken);
+
+        // Save to Local DB
+        const record = {
+            timestamp: new Date().toLocaleString(),
+            token: currentToken,
+            name: name,
+            phone: phone || '-',
+            age: age,
+            gender: gender,
+            nationality: nationality
+        };
+        await saveRecord(record);
+        refreshRecordsTable();
+
+        // Save to Google Sheets (cloud backup)
+        if (GOOGLE_SHEETS_URL) {
+            try {
+                await fetch(GOOGLE_SHEETS_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(record)
+                });
+                addLog('Record synced to cloud.', 'success');
+            } catch (cloudErr) {
+                addLog('Cloud sync failed (offline?).', 'error');
+            }
+        }
+
+        addLog(`Token #${currentToken} saved for ${name}.`, 'success');
+
+        // Clear form
+        document.getElementById('tokenForm').reset();
+
+        return record;
+    }
+
+    // --- Print Token ---
+    async function printToken(record) {
+        if (!device && !characteristic) {
+            addLog('Cannot print: No printer connected.', 'error');
+            return false;
         }
 
         try {
@@ -325,48 +559,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error('ReceiptPrinterEncoder library not loaded.');
             }
 
-            // Increment and Save Token
-            currentToken++;
-            localStorage.setItem('delekTokenCounter', currentToken);
+            addLog(`Printing Token #${record.token}...`, 'info');
 
-            // Save to Local DB
-            const record = {
-                timestamp: new Date().toLocaleString(),
-                token: currentToken,
-                name: name,
-                age: age,
-                gender: gender,
-                nationality: nationality
-            };
-            await saveRecord(record);
-            refreshRecordsTable();
-
-            // Save to Google Sheets (cloud backup)
-            if (GOOGLE_SHEETS_URL) {
-                try {
-                    await fetch(GOOGLE_SHEETS_URL, {
-                        method: 'POST',
-                        mode: 'no-cors',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(record)
-                    });
-                    addLog('Record synced to cloud.', 'success');
-                } catch (cloudErr) {
-                    addLog('Cloud sync failed (offline?).', 'error');
-                }
-            }
-
-            addLog(`Generating Token #${currentToken} for ${name}...`, 'info');
+            // Create Tibetan header as image for reliable printing
+            const tibetanHeader = createTibetanImage('བདེ་ལེགས་སྨན་ཁང་།', 36);
 
             const encoder = new ReceiptPrinterEncoder();
             const result = encoder
                 .initialize()
                 .align('center')
-                .bold(true)
-                .width(2)
-                .height(2)
-                .text('བདེ་ལེགས་སྨན་ཁང་།')
+                .image(tibetanHeader, 384, 56, 'atkinson')
                 .newline()
+                .bold(true)
                 .width(1)
                 .height(1)
                 .text('Delek Hospital')
@@ -377,18 +581,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 .newline()
                 .width(3)
                 .height(3)
-                .text(`${currentToken}`)
+                .text(`${record.token}`)
                 .newline()
                 .width(1)
                 .height(1)
                 .rule()
                 .newline()
                 .align('left')
-                .bold(true).text('Name:    ').bold(false).text(name).newline()
-                .bold(true).text('Age/Gen: ').bold(false).text(`${age} / ${gender}`).newline()
+                .bold(true).text('Name:    ').bold(false).text(record.name).newline()
+                .bold(true).text('Age/Gen: ').bold(false).text(`${record.age} / ${record.gender}`).newline()
                 .newline()
                 .align('center')
-                .text(new Date().toLocaleString())
+                .text(record.timestamp)
                 .newline()
                 .newline()
                 .text('Please wait for your turn.')
@@ -397,14 +601,41 @@ document.addEventListener('DOMContentLoaded', () => {
                 .cut()
                 .encode();
 
-            addLog('Sending to printer...', 'info');
             await sendData(result);
-            addLog(`Token #${currentToken} printed successfully!`, 'success');
-
-            // Clear form
-            document.getElementById('tokenForm').reset();
+            addLog(`Token #${record.token} printed!`, 'success');
+            return true;
         } catch (err) {
             addLog(`Print error: ${err.message}`, 'error');
+            return false;
+        }
+    }
+
+    // --- Button: Save Only ---
+    const btnSaveToken = document.getElementById('btnSaveToken');
+    btnSaveToken.addEventListener('click', async () => {
+        btnSaveToken.classList.add('loading');
+        btnSaveToken.textContent = 'Saving...';
+        try {
+            await saveTokenRecord();
+        } finally {
+            btnSaveToken.classList.remove('loading');
+            btnSaveToken.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Save`;
+        }
+    });
+
+    // --- Button: Save & Print ---
+    const btnSaveAndPrint = document.getElementById('btnSaveAndPrint');
+    btnSaveAndPrint.addEventListener('click', async () => {
+        btnSaveAndPrint.classList.add('loading');
+        btnSaveAndPrint.textContent = 'Processing...';
+        try {
+            const record = await saveTokenRecord();
+            if (record) {
+                await printToken(record);
+            }
+        } finally {
+            btnSaveAndPrint.classList.remove('loading');
+            btnSaveAndPrint.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z"/></svg> Save & Print`;
         }
     });
 
@@ -449,9 +680,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Management Actions
+    // Search records
+    document.getElementById('searchRecords').addEventListener('input', (e) => {
+        refreshRecordsTable(e.target.value);
+    });
+
     document.getElementById('btnRefreshRecords').addEventListener('click', () => {
+        document.getElementById('searchRecords').value = '';
         refreshRecordsTable();
-        addLog('Records table refreshed.', 'info');
+        addLog('Records refreshed.', 'info');
     });
 
     document.getElementById('btnClearAllRecords').addEventListener('click', async () => {
