@@ -141,6 +141,7 @@ h2 {
 }
 
 input[type="text"],
+input[type="tel"],
 input[type="number"],
 select {
     width: 100%;
@@ -214,9 +215,18 @@ select {
 .btn.action {
     background: var(--primary);
     color: #fff;
-    width: 100%;
+    flex: 1;
     padding: 18px;
-    font-size: 1.15rem;
+    font-size: 1.05rem;
+}
+
+.btn.action.secondary-action {
+    background: rgba(0, 0, 0, 0.05);
+    color: var(--text);
+}
+
+.btn.action.secondary-action:hover:not(:disabled) {
+    background: rgba(0, 0, 0, 0.1);
 }
 
 .btn.secondary {
@@ -409,4 +419,182 @@ footer {
     margin-top: 40px;
     color: var(--text-muted);
     font-size: 0.9rem;
+}
+
+/* Login Overlay */
+.login-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--bg-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    animation: fadeIn 0.5s ease-out;
+}
+
+.login-overlay.hidden {
+    display: none;
+}
+
+.login-card {
+    background: var(--card-bg);
+    backdrop-filter: blur(30px);
+    -webkit-backdrop-filter: blur(30px);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-radius: 28px;
+    padding: 48px;
+    width: 100%;
+    max-width: 400px;
+    box-shadow: var(--shadow);
+    animation: fadeUp 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.login-header {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.login-header .tibetan-title {
+    font-size: 2rem;
+}
+
+.login-header .english-title {
+    font-size: 1.25rem;
+    margin-bottom: 0;
+}
+
+.login-subtitle {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-top: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.login-input-group {
+    margin-bottom: 20px;
+}
+
+.login-input-group input {
+    width: 100%;
+    padding: 18px 24px;
+    border-radius: 16px;
+    border: 1.5px solid rgba(0, 0, 0, 0.05);
+    background: rgba(255, 255, 255, 0.8);
+    font-size: 1.05rem;
+    font-family: inherit;
+    color: var(--text);
+    transition: all 0.3s cubic-bezier(0.2, 0, 0.2, 1);
+}
+
+.login-input-group input:hover {
+    border-color: rgba(0, 0, 0, 0.15);
+    background: #fff;
+}
+
+.login-input-group input:focus {
+    outline: none;
+    border-color: var(--primary);
+    background: #fff;
+    box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.12);
+}
+
+.login-btn {
+    width: 100%;
+    padding: 18px;
+    font-size: 1.1rem;
+    margin-top: 8px;
+}
+
+.login-error {
+    color: #ff3b30;
+    text-align: center;
+    font-size: 0.9rem;
+    margin-top: 16px;
+    min-height: 1.2em;
+}
+
+/* Header User Area */
+.header-user {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+#loggedInUser {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.btn-logout {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.05);
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-logout:hover {
+    background: rgba(255, 59, 48, 0.1);
+    color: #ff3b30;
+}
+
+/* Search Input */
+.search-input {
+    padding: 8px 14px;
+    border-radius: 10px;
+    border: 1.5px solid rgba(0, 0, 0, 0.05);
+    background: rgba(255, 255, 255, 0.8);
+    font-size: 0.9rem;
+    font-family: inherit;
+    width: 150px;
+    transition: all 0.2s;
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    width: 200px;
+}
+
+/* Loading State */
+.btn.loading {
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+.btn.loading::after {
+    content: '';
+    width: 16px;
+    height: 16px;
+    border: 2px solid transparent;
+    border-top-color: currentColor;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-left: 8px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+header {
+    position: relative;
 }
