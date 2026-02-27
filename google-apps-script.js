@@ -7,7 +7,7 @@
  * 3. Create TWO sheets (tabs at bottom):
  *
  *    Sheet 1: "Records" (for patient data)
- *    - Row 1 headers: Timestamp | Token | Name | Phone | Age | Gender | Nationality
+ *    - Row 1 headers: Timestamp | Token | Name | Phone | Age | Gender | Nationality | RegisteredBy
  *
  *    Sheet 2: "Users" (for login credentials)
  *    - Row 1 headers: Username | Password | Name
@@ -41,7 +41,8 @@ function doPost(e) {
             data.phone || '-',
             data.age,
             data.gender,
-            data.nationality
+            data.nationality,
+            data.registeredBy || '-'
         ]);
 
         return ContentService
@@ -79,7 +80,8 @@ function doGet(e) {
                 phone: data[i][3] || '-',
                 age: data[i][4],
                 gender: data[i][5],
-                nationality: data[i][6]
+                nationality: data[i][6],
+                registeredBy: data[i][7] || '-'
             });
         }
 

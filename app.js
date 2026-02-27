@@ -13,7 +13,7 @@
  * 
  * Example: const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycb.../exec';
  */
-const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbztjmB5qibKFjJxp8ZuCzTcTTnwYfS3wHol7R4ogon7UTw7JFR9n-8tq_7Pjx8NLPXTzA/exec'; // <-- PASTE YOUR GOOGLE APPS SCRIPT URL HERE
+const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzX8vlbiAtBqkUUdRBInFl9SfGwECY-94a5WzpoNjbl3iHBOdz0Km_Q6GLUFGyq_40-7Q/exec'; // <-- PASTE YOUR GOOGLE APPS SCRIPT URL HERE
 
 // Direct link to open the Google Sheet (for viewing all records)
 // Replace with your actual Google Sheet URL
@@ -122,7 +122,26 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Logout button
-    btnLogout.addEventListener('click', logout);
+    btnLogout.addEventListener('click', () => {
+        document.getElementById('userMenu').classList.add('hidden');
+        logout();
+    });
+
+    // Menu toggle
+    const btnMenuToggle = document.getElementById('btnMenuToggle');
+    const userMenu = document.getElementById('userMenu');
+
+    btnMenuToggle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        userMenu.classList.toggle('hidden');
+    });
+
+    // Close menu when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!userMenu.contains(e.target) && e.target !== btnMenuToggle) {
+            userMenu.classList.add('hidden');
+        }
+    });
 });
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -317,8 +336,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Store records for search
+    // Store records for search and sorting
     let allRecords = [];
+    let currentSort = { field: null, dir: 'desc' };
 
     async function refreshRecordsTable(searchTerm = '') {
         const tbody = document.getElementById('recordsBody');
@@ -357,17 +377,42 @@ document.addEventListener('DOMContentLoaded', () => {
         tbody.innerHTML = '';
 
         // Show last 50 records, newest first
-        filteredRecords.slice().reverse().slice(0, 50).forEach(r => {
+        // Sort records
+        let sortedRecords = filteredRecords.slice();
+        if (currentSort.field) {
+            sortedRecords.sort((a, b) => {
+                let valA = a[currentSort.field];
+                let valB = b[currentSort.field];
+
+                // Handle numeric fields
+                if (currentSort.field === 'token' || currentSort.field === 'age') {
+                    valA = parseInt(valA) || 0;
+                    valB = parseInt(valB) || 0;
+                } else {
+                    valA = String(valA || '').toLowerCase();
+                    valB = String(valB || '').toLowerCase();
+                }
+
+                if (valA < valB) return currentSort.dir === 'asc' ? -1 : 1;
+                if (valA > valB) return currentSort.dir === 'asc' ? 1 : -1;
+                return 0;
+            });
+        } else {
+            // Default: newest first
+            sortedRecords.reverse();
+        }
+
+        sortedRecords.slice(0, 50).forEach(r => {
             const tr = document.createElement('tr');
             const timeStr = typeof r.timestamp === 'string' && r.timestamp.includes(', ')
                 ? r.timestamp.split(', ')[1]
                 : r.timestamp;
             tr.innerHTML = `
+                <td class="time-cell">${timeStr}</td>
                 <td class="token-cell">#${r.token}</td>
                 <td>${r.name}</td>
-                <td>${r.phone || '-'}</td>
                 <td>${r.age} / ${r.gender}</td>
-                <td class="time-cell">${timeStr}</td>
+                <td class="by-cell">${r.registeredBy || '-'}</td>
                 <td class="action-cell">
                     <button class="btn-icon reprint" data-id="${r.token}" title="Print">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z"/></svg>
@@ -511,6 +556,10 @@ document.addEventListener('DOMContentLoaded', () => {
         currentToken++;
         saveTokenCounter(currentToken);
 
+        // Get logged-in user
+        const session = checkAuth();
+        const registeredBy = session ? session.name : 'Unknown';
+
         // Save to Local DB
         const record = {
             timestamp: new Date().toLocaleString(),
@@ -519,7 +568,8 @@ document.addEventListener('DOMContentLoaded', () => {
             phone: phone || '-',
             age: age,
             gender: gender,
-            nationality: nationality
+            nationality: nationality,
+            registeredBy: registeredBy
         };
         await saveRecord(record);
         refreshRecordsTable();
@@ -687,17 +737,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('btnRefreshRecords').addEventListener('click', () => {
         document.getElementById('searchRecords').value = '';
+        currentSort = { field: null, dir: 'desc' };
+        updateSortIndicators();
         refreshRecordsTable();
         addLog('Records refreshed.', 'info');
     });
 
-    document.getElementById('btnClearAllRecords').addEventListener('click', async () => {
-        if (confirm('Are you sure you want to PERMANENTLY delete all medical records? This cannot be undone.')) {
-            await clearAllRecords();
-            refreshRecordsTable();
-            addLog('All records have been cleared.', 'error');
-        }
+    // Sortable headers
+    document.querySelectorAll('.sortable').forEach(th => {
+        th.addEventListener('click', () => {
+            const field = th.dataset.sort;
+            if (currentSort.field === field) {
+                currentSort.dir = currentSort.dir === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort.field = field;
+                currentSort.dir = 'asc';
+            }
+            updateSortIndicators();
+            refreshRecordsTable(document.getElementById('searchRecords').value);
+        });
     });
+
+    function updateSortIndicators() {
+        document.querySelectorAll('.sortable').forEach(th => {
+            th.classList.remove('sort-asc', 'sort-desc');
+            if (th.dataset.sort === currentSort.field) {
+                th.classList.add(currentSort.dir === 'asc' ? 'sort-asc' : 'sort-desc');
+            }
+        });
+    }
 
     // Re-use test print for debug
     if (btnTestPrint) {
