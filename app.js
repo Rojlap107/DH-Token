@@ -442,15 +442,10 @@ document.addEventListener('DOMContentLoaded', () => {
             isPrinting = true;
             addLog(`Reprinting Token #${record.token} for ${record.name}...`, 'info');
 
-            // Create Tibetan header as image for reliable printing
-            const tibetanHeader = createTibetanImage('བདེ་ལེགས་སྨན་ཁང་།', 36);
-
             const encoder = new ReceiptPrinterEncoder();
             const result = encoder
                 .initialize()
                 .align('center')
-                .image(tibetanHeader, 384, 56, 'atkinson')
-                .newline()
                 .bold(true)
                 .width(1)
                 .height(1)
@@ -540,8 +535,8 @@ document.addEventListener('DOMContentLoaded', () => {
             for (let i = 0; i < data.byteLength; i += chunkSize) {
                 const chunk = data.slice(i, Math.min(i + chunkSize, data.byteLength));
                 await characteristic.writeValue(chunk);
-                // Longer delay for Android BLE stack to process
-                await delay(50);
+                // Small delay between chunks
+                await delay(10);
             }
         }
     }
@@ -623,15 +618,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             addLog(`Printing Token #${record.token}...`, 'info');
 
-            // Create Tibetan header as image for reliable printing
-            const tibetanHeader = createTibetanImage('བདེ་ལེགས་སྨན་ཁང་།', 36);
-
             const encoder = new ReceiptPrinterEncoder();
             const result = encoder
                 .initialize()
                 .align('center')
-                .image(tibetanHeader, 384, 56, 'atkinson')
-                .newline()
                 .bold(true)
                 .width(1)
                 .height(1)
