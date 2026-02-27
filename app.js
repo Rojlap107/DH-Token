@@ -442,15 +442,10 @@ document.addEventListener('DOMContentLoaded', () => {
             isPrinting = true;
             addLog(`Reprinting Token #${record.token} for ${record.name}...`, 'info');
 
-            // Create Tibetan header as image for reliable printing
-            const tibetanHeader = createTibetanImage('བདེ་ལེགས་སྨན་ཁང་།', 36);
-
             const encoder = new ReceiptPrinterEncoder();
             const result = encoder
                 .initialize()
                 .align('center')
-                .image(tibetanHeader, 384, 56, 'atkinson')
-                .newline()
                 .bold(true)
                 .width(1)
                 .height(1)
@@ -624,15 +619,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             addLog(`Printing Token #${record.token}...`, 'info');
 
-            // Create Tibetan header as image for reliable printing
-            const tibetanHeader = createTibetanImage('བདེ་ལེགས་སྨན་ཁང་།', 36);
-
             const encoder = new ReceiptPrinterEncoder();
             const result = encoder
                 .initialize()
                 .align('center')
-                .image(tibetanHeader, 384, 56, 'atkinson')
-                .newline()
                 .bold(true)
                 .width(1)
                 .height(1)
