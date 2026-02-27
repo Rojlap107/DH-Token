@@ -13,7 +13,7 @@
  * 
  * Example: const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycb.../exec';
  */
-const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzX8vlbiAtBqkUUdRBInFl9SfGwECY-94a5WzpoNjbl3iHBOdz0Km_Q6GLUFGyq_40-7Q/exec'; // <-- PASTE YOUR GOOGLE APPS SCRIPT URL HERE
+const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbxFZeefM8pauqGar57rpPeV3dJjcMKSAEfO5mUugUReDcPbtmi95oB7EpRMR_WIkItPNg/exec'; // <-- PASTE YOUR GOOGLE APPS SCRIPT URL HERE
 
 // Direct link to open the Google Sheet (for viewing all records)
 // Replace with your actual Google Sheet URL
@@ -405,9 +405,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         sortedRecords.slice(0, 50).forEach(r => {
             const tr = document.createElement('tr');
-            const timeStr = typeof r.timestamp === 'string' && r.timestamp.includes(', ')
-                ? r.timestamp.split(', ')[1]
-                : r.timestamp;
+            // Normalize timestamp display - handle both ISO and locale formats
+            let timeStr = r.timestamp;
+            if (typeof r.timestamp === 'string') {
+                if (r.timestamp.includes('T') && r.timestamp.includes('Z')) {
+                    // ISO format from Google Sheets - convert to local date/time
+                    const date = new Date(r.timestamp);
+                    timeStr = date.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                } else if (r.timestamp.includes(', ')) {
+                    // Local format "MM/DD/YYYY, HH:MM:SS" - convert to shorter format
+                    const date = new Date(r.timestamp);
+                    timeStr = date.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                }
+            }
             tr.innerHTML = `
                 <td class="time-cell">${timeStr}</td>
                 <td class="token-cell">#${r.token}</td>
@@ -490,34 +500,54 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initDB();
 
-    // Token Counter (resets daily)
+    // Token Counter (synced from Google Sheets, resets daily)
+    async function getNextTokenFromCloud() {
+        if (!GOOGLE_SHEETS_URL) {
+            // Fallback to localStorage if no cloud URL
+            return getNextTokenFromLocal();
+        }
+
+        try {
+            const url = `${GOOGLE_SHEETS_URL}?action=getNextToken`;
+            const response = await fetch(url);
+            const data = await response.json();
+
+            if (data.success && data.nextToken) {
+                addLog(`Token #${data.nextToken} assigned from cloud.`, 'info');
+                return data.nextToken;
+            }
+        } catch (err) {
+            addLog('Cloud token fetch failed, using local fallback.', 'error');
+        }
+
+        // Fallback to localStorage
+        return getNextTokenFromLocal();
+    }
+
     function getTodayDateString() {
         return new Date().toISOString().split('T')[0]; // Returns "YYYY-MM-DD"
     }
 
-    function loadTokenCounter() {
+    function getNextTokenFromLocal() {
         const stored = localStorage.getItem('delekTokenData');
+        let currentToken = 0;
         if (stored) {
             try {
                 const data = JSON.parse(stored);
                 if (data.date === getTodayDateString()) {
-                    return data.token;
+                    currentToken = data.token;
                 }
             } catch (e) {
                 // Invalid data, reset
             }
         }
-        return 0; // New day or no data, start from 0
-    }
-
-    function saveTokenCounter(token) {
+        const nextToken = currentToken + 1;
         localStorage.setItem('delekTokenData', JSON.stringify({
             date: getTodayDateString(),
-            token: token
+            token: nextToken
         }));
+        return nextToken;
     }
-
-    let currentToken = loadTokenCounter();
 
     // --- Printing Logic ---
     // Small delay helper for Bluetooth timing
@@ -562,9 +592,8 @@ document.addEventListener('DOMContentLoaded', () => {
             return null;
         }
 
-        // Increment and Save Token (resets daily)
-        currentToken++;
-        saveTokenCounter(currentToken);
+        // Get next token from cloud (synced across all devices)
+        const tokenNumber = await getNextTokenFromCloud();
 
         // Get logged-in user
         const session = checkAuth();
@@ -573,7 +602,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Save to Local DB
         const record = {
             timestamp: new Date().toLocaleString(),
-            token: currentToken,
+            token: tokenNumber,
             name: name,
             phone: phone || '-',
             age: age,
@@ -599,7 +628,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        addLog(`Token #${currentToken} saved for ${name}.`, 'success');
+        addLog(`Token #${tokenNumber} saved for ${name}.`, 'success');
 
         // Clear form
         document.getElementById('tokenForm').reset();

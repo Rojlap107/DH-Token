@@ -55,7 +55,7 @@ function doPost(e) {
     }
 }
 
-// Handle GET requests (for fetching records OR login)
+// Handle GET requests (for fetching records OR login OR token)
 function doGet(e) {
     try {
         const action = e.parameter.action;
@@ -63,6 +63,11 @@ function doGet(e) {
         // Handle login request
         if (action === 'login') {
             return handleLogin(e);
+        }
+
+        // Handle next token request
+        if (action === 'getNextToken') {
+            return handleGetNextToken();
         }
 
         // Default: return patient records
@@ -87,6 +92,52 @@ function doGet(e) {
 
         return ContentService
             .createTextOutput(JSON.stringify({ success: true, records: records }))
+            .setMimeType(ContentService.MimeType.JSON);
+    } catch (error) {
+        return ContentService
+            .createTextOutput(JSON.stringify({ success: false, error: error.toString() }))
+            .setMimeType(ContentService.MimeType.JSON);
+    }
+}
+
+// Handle getting the next token number (resets daily)
+function handleGetNextToken() {
+    try {
+        const ss = SpreadsheetApp.getActiveSpreadsheet();
+        const sheet = ss.getSheetByName('Records') || ss.getActiveSheet();
+        const data = sheet.getDataRange().getValues();
+
+        // Get today's date string (YYYY-MM-DD)
+        const today = new Date();
+        const todayStr = Utilities.formatDate(today, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+
+        // Count tokens from today
+        let maxTokenToday = 0;
+        for (let i = 1; i < data.length; i++) {
+            const timestamp = data[i][0];
+            const token = parseInt(data[i][1]) || 0;
+
+            // Check if this record is from today
+            let recordDate;
+            if (timestamp instanceof Date) {
+                recordDate = Utilities.formatDate(timestamp, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+            } else if (typeof timestamp === 'string') {
+                // Handle ISO string or other formats
+                const parsed = new Date(timestamp);
+                if (!isNaN(parsed)) {
+                    recordDate = Utilities.formatDate(parsed, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+                }
+            }
+
+            if (recordDate === todayStr && token > maxTokenToday) {
+                maxTokenToday = token;
+            }
+        }
+
+        const nextToken = maxTokenToday + 1;
+
+        return ContentService
+            .createTextOutput(JSON.stringify({ success: true, nextToken: nextToken, date: todayStr }))
             .setMimeType(ContentService.MimeType.JSON);
     } catch (error) {
         return ContentService
