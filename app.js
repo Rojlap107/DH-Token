@@ -436,6 +436,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         timeStr = date.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
                     }
+                } else {
+                    // New format "Mar 6, 2026, 06:55 PM" - already readable, just shorten if needed
+                    const date = new Date(r.timestamp);
+                    if (!isNaN(date)) {
+                        timeStr = date.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                    }
                 }
             }
             tr.innerHTML = `
@@ -634,14 +640,21 @@ document.addEventListener('DOMContentLoaded', () => {
         await saveRecord(record);
         refreshRecordsTable();
 
-        // Save to Google Sheets (cloud backup)
+        // Save to Google Sheets (cloud backup) with formatted timestamp for readability
         if (GOOGLE_SHEETS_URL) {
             try {
+                const cloudRecord = {
+                    ...record,
+                    timestamp: now.toLocaleString('en-US', {
+                        year: 'numeric', month: 'short', day: 'numeric',
+                        hour: '2-digit', minute: '2-digit'
+                    })
+                };
                 await fetch(GOOGLE_SHEETS_URL, {
                     method: 'POST',
                     mode: 'no-cors',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(record)
+                    body: JSON.stringify(cloudRecord)
                 });
                 addLog('Record synced to cloud.', 'success');
             } catch (cloudErr) {
