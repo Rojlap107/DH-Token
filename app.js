@@ -408,14 +408,34 @@ document.addEventListener('DOMContentLoaded', () => {
             // Normalize timestamp display - handle both ISO and locale formats
             let timeStr = r.timestamp;
             if (typeof r.timestamp === 'string') {
-                if (r.timestamp.includes('T') && r.timestamp.includes('Z')) {
-                    // ISO format from Google Sheets - convert to local date/time
+                if (r.timestamp.includes('T')) {
+                    // ISO format - parse directly (unambiguous)
                     const date = new Date(r.timestamp);
-                    timeStr = date.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-                } else if (r.timestamp.includes(', ')) {
-                    // Local format "MM/DD/YYYY, HH:MM:SS" - convert to shorter format
-                    const date = new Date(r.timestamp);
-                    timeStr = date.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                    if (!isNaN(date)) {
+                        timeStr = date.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                    }
+                } else if (r.timestamp.includes('/') && r.timestamp.includes(', ')) {
+                    // Old US locale format "M/D/YYYY, H:MM:SS AM/PM" - parse parts manually
+                    const parts = r.timestamp.split(', ');
+                    const dateParts = parts[0].split('/');
+                    if (dateParts.length === 3) {
+                        // US format: month/day/year
+                        const month = parseInt(dateParts[0], 10) - 1;
+                        const day = parseInt(dateParts[1], 10);
+                        const year = parseInt(dateParts[2], 10);
+                        const timePart = parts[1] || '00:00:00';
+                        const date = new Date(year, month, day);
+                        // Parse time portion
+                        const timeMatch = timePart.match(/(\d+):(\d+)/);
+                        if (timeMatch) {
+                            let hours = parseInt(timeMatch[1], 10);
+                            const mins = parseInt(timeMatch[2], 10);
+                            if (timePart.toLowerCase().includes('pm') && hours < 12) hours += 12;
+                            if (timePart.toLowerCase().includes('am') && hours === 12) hours = 0;
+                            date.setHours(hours, mins);
+                        }
+                        timeStr = date.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                    }
                 }
             }
             tr.innerHTML = `
@@ -480,7 +500,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 .bold(true).text('Age/Gen: ').bold(false).text(`${record.age} / ${record.gender}`).newline()
                 .newline()
                 .align('center')
-                .text(record.timestamp)
+                .text(new Date(record.timestamp).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }))
                 .newline()
                 .newline()
                 .text('** REPRINT **')
@@ -599,9 +619,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const session = checkAuth();
         const registeredBy = session ? session.name : 'Unknown';
 
-        // Save to Local DB
+        // Save to Local DB (use ISO timestamp for reliable cross-locale parsing)
+        const now = new Date();
         const record = {
-            timestamp: new Date().toLocaleString(),
+            timestamp: now.toISOString(),
             token: tokenNumber,
             name: name,
             phone: phone || '-',
@@ -683,7 +704,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 .bold(true).text('Age/Gen: ').bold(false).text(`${record.age} / ${record.gender}`).newline()
                 .newline()
                 .align('center')
-                .text(record.timestamp)
+                .text(new Date(record.timestamp).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }))
                 .newline()
                 .newline()
                 .text('Please wait for your turn.')
